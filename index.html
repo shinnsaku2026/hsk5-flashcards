@@ -93,6 +93,19 @@
   .card:active {
     transform: scale(0.98);
   }
+  .word-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+  }
+  .speak-button {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    color: var(--primary);
+  }
   .word {
     font-size: 3rem;
     font-weight: bold;
@@ -179,6 +192,12 @@
     from { opacity: 0; }
     to { opacity: 1; }
   }
+  .card.status-learned {
+    border: 3px solid var(--green);
+  }
+  .card.status-learning {
+    border: 3px solid var(--orange);
+  }
 </style>
 </head>
 <body>
@@ -195,10 +214,13 @@
   </div>
   <div id="overallProgressText"></div>
 
-  <div class="progress" id="progressIndicator"></div>
+  <div class="progress" id="progressIndicator" onclick="selectStartCard()" style="cursor: pointer;" title="開始カードを選択"></div>
   
   <div class="card" id="flashcard" onclick="toggleCard()">
-    <h1 class="word" id="wordDisplay">兄弟</h1>
+    <div class="word-container">
+      <h1 class="word" id="wordDisplay">兄弟</h1>
+      <button id="speakBtn" class="speak-button">🔊</button>
+    </div>
     <div class="hidden-content">
       <div class="pinyin" id="pinyinDisplay">xiōngdì</div>
       <div class="translation" id="translationDisplay">兄弟</div>
@@ -250,6 +272,10 @@
     reviewModeBtn.addEventListener('click', () => setupMode('review'));
     document.getElementById('btnLearned').addEventListener('click', () => handleStatusUpdate('learned'));
     document.getElementById('btnNotLearned').addEventListener('click', () => handleStatusUpdate('learning'));
+    document.getElementById('speakBtn').addEventListener('click', (e) => {
+        e.stopPropagation(); // カードが裏返るのを防ぐ
+        speakWord();
+    });
 
     setupMode(currentMode);
     updateStatsChart();
@@ -292,8 +318,16 @@
     currentMode = mode;
     currentIndex = 0;
 
-    document.querySelectorAll('.mode-selector button').forEach(btn => btn.classList.remove('active'));
-    document.getElementById(`${mode}WordsMode` || 'allWordsMode').classList.add('active');
+    document.querySelectorAll('.mode-selector button').forEach(b => b.classList.remove('active'));
+    let activeBtn;
+    if (mode === 'random') {
+      activeBtn = randomTestModeBtn;
+    } else if (mode === 'review') {
+      activeBtn = reviewModeBtn;
+    } else {
+      activeBtn = allWordsModeBtn;
+    }
+    activeBtn.classList.add('active');
 
     switch(mode) {
       case 'random':
@@ -328,6 +362,13 @@
     document.getElementById('exampleJaDisplay').textContent = currentVocab.exampleJa;
     updateProgress();
     card.classList.remove('show');
+
+    // ステータスに応じてカードのスタイルを変更
+    card.classList.remove('status-learning', 'status-learned');
+    const status = activeList[currentIndex]?.status;
+    if (status === 'learning' || status === 'learned') {
+      card.classList.add(`status-${status}`);
+    }
   }
 
   function updateProgress() {
@@ -393,21 +434,56 @@
 
   function handleStatusUpdate(newStatus) {
     const vocab = activeList[currentIndex];
+    if (!vocab) return;
     const originalIndex = vocabData.findIndex(v => v.word === vocab.word);
 
     if (originalIndex !== -1) {
+      const oldStatus = vocabData[originalIndex].status;
       // 「学習済み」になった瞬間にのみカウント
-      if (newStatus === 'learned' && vocabData[originalIndex].status !== 'learned') {
+      if (newStatus === 'learned' && oldStatus !== 'learned') {
         const todayString = new Date().toISOString().split('T')[0];
         statsData[todayString] = (statsData[todayString] || 0) + 1;
         saveStatsData();
         updateStatsChart();
       }
       vocabData[originalIndex].status = newStatus;
+      activeList[currentIndex].status = newStatus;
       saveVocabData();
     }
     updateProgress();
-    nextCard();
+    updateCard(); // ステータス変更を即時UIに反映
+
+    // 少し待ってから次のカードへ
+    setTimeout(() => {
+      nextCard();
+    }, 300);
+  }
+
+  function speakWord() {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance();
+      const currentVocab = activeList[currentIndex];
+      utterance.text = currentVocab.word;
+      utterance.lang = 'zh-CN'; // 中国語（北京語）を指定
+      utterance.rate = 0.9; // 少しゆっくりめに発音
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert('お使いのブラウザは音声読み上げに対応していません。');
+    }
+  }
+
+
+  function selectStartCard() {
+    const startIndex = prompt(`開始する単語の番号を入力してください (1〜${activeList.length})`, currentIndex + 1);
+    if (startIndex !== null) {
+      const newIndex = parseInt(startIndex, 10) - 1;
+      if (!isNaN(newIndex) && newIndex >= 0 && newIndex < activeList.length) {
+        currentIndex = newIndex;
+        updateCard();
+      } else {
+        alert('無効な番号です。');
+      }
+    }
   }
 
   function nextCard() {
