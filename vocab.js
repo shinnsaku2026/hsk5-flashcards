@@ -1,4 +1,4 @@
-const vocabList = [
+const initialVocabList = [
   {"word":"兄弟","pinyin":"xiōngdì","translation":"兄弟","exampleZh":"他是我的好兄弟","exampleJa":"彼は私のいい兄弟です"},
   {"word":"姑姑","pinyin":"gūgu","translation":"おば(父の姉妹)","exampleZh":"姑姑是父亲的妹妹","exampleJa":"叔母は父の妹です"},
   {"word":"舅舅","pinyin":"jiùjiu","translation":"おじ(母方の兄弟)","exampleZh":"我的舅舅是一名医生","exampleJa":"私の叔父は医者です"},
