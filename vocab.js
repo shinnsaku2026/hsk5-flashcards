@@ -1,7 +1,7 @@
 // HSK4級の単語リスト（一部抜粋）
 // 完全なリストは別途追加が必要です。
 const vocab_hsk4 = [
-{"word": "父亲", "pinyin": "fùqīn", "translation": "お父さん", "exampleZh": "我的父亲是个警察", "exampleJa": "私の父は警察官です"},
+  {"word": "父亲", "pinyin": "fùqīn", "translation": "お父さん", "exampleZh": "我的父亲是个警察", "exampleJa": "私の父は警察官です"},
   {"word": "母亲", "pinyin": "mǔqīn", "translation": "お母さん", "exampleZh": "母亲不仅擅长做饭,还擅长做蛋糕", "exampleJa": "母は料理だけでなく、ケーキを作るのも得意です"},
   {"word": "孙子", "pinyin": "sūnzi", "translation": "孫", "exampleZh": "既然孙子想玩游戏,你就让他玩吧", "exampleJa": "孫が遊びたがっているんだから、遊ばせてあげましょう"},
   {"word": "亲戚", "pinyin": "qīnqi", "translation": "親戚、親類", "exampleZh": "过节的时候,很多亲戚朋友都会来我家", "exampleJa": "祝日には多くの親戚や友人が我が家に来ます"},
