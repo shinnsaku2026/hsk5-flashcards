@@ -106,6 +106,20 @@
     cursor: pointer;
     color: var(--primary);
   }
+  .example-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+  .speak-button-small {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--primary);
+  }
   .word {
     font-size: 3rem;
     font-weight: bold;
@@ -132,7 +146,6 @@
   }
   .example-zh {
     font-size: 1.1rem;
-    margin-bottom: 5px;
   }
   .example-ja {
     font-size: 0.9rem;
@@ -224,7 +237,10 @@
     <div class="hidden-content">
       <div class="pinyin" id="pinyinDisplay">xiōngdì</div>
       <div class="translation" id="translationDisplay">兄弟</div>
-      <div class="example-zh" id="exampleZhDisplay">他是我的好兄弟</div>
+      <div class="example-container">
+        <div class="example-zh" id="exampleZhDisplay">他是我的好兄弟</div>
+        <button id="speakExampleBtn" class="speak-button-small">🔊</button>
+      </div>
       <div class="example-ja" id="exampleJaDisplay">彼は私のいい兄弟です</div>
     </div>
   </div>
@@ -275,6 +291,10 @@
     document.getElementById('speakBtn').addEventListener('click', (e) => {
         e.stopPropagation(); // カードが裏返るのを防ぐ
         speakWord();
+    });
+    document.getElementById('speakExampleBtn').addEventListener('click', (e) => {
+        e.stopPropagation(); // カードが裏返るのを防ぐ
+        speakExample();
     });
 
     setupMode(currentMode);
@@ -464,6 +484,19 @@
       const utterance = new SpeechSynthesisUtterance();
       const currentVocab = activeList[currentIndex];
       utterance.text = currentVocab.word;
+      utterance.lang = 'zh-CN'; // 中国語（北京語）を指定
+      utterance.rate = 0.9; // 少しゆっくりめに発音
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert('お使いのブラウザは音声読み上げに対応していません。');
+    }
+  }
+
+  function speakExample() {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance();
+      const currentVocab = activeList[currentIndex];
+      utterance.text = currentVocab.exampleZh;
       utterance.lang = 'zh-CN'; // 中国語（北京語）を指定
       utterance.rate = 0.9; // 少しゆっくりめに発音
       window.speechSynthesis.speak(utterance);
