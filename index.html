@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HSK5 単語学習</title>
+<title>HSK5 単語学習アプリ</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root {
     --primary: #4A90E2;
@@ -30,6 +31,42 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+  .mode-selector {
+    display: flex;
+    gap: 10px;
+  }
+  .mode-selector button {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid var(--primary);
+    background-color: var(--card-bg);
+    color: var(--primary);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .mode-selector button.active {
+    background-color: var(--primary);
+    color: white;
+  }
+  .overall-progress-container {
+    width: 100%;
+    background-color: #e9ecef;
+    border-radius: 5px;
+  }
+  #overallProgressBar {
+    width: 0%;
+    height: 10px;
+    background-color: var(--green);
+    border-radius: 5px;
+    transition: width 0.5s ease-in-out;
+  }
+  #overallProgressText {
+    text-align: center;
+    font-size: 0.9rem;
+    margin-top: 5px;
+    color: #666;
   }
   .progress {
     text-align: center;
@@ -91,6 +128,23 @@
     justify-content: space-between;
     gap: 10px;
   }
+  .status-controls {
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+  }
+  .status-controls button {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+  }
+  #btnNotLearned { background-color: var(--orange); }
+  #btnLearned { background-color: var(--green); }
   button {
     flex: 1;
     padding: 15px;
@@ -103,6 +157,17 @@
   }
   .btn-prev { background-color: #9B9B9B; }
   .btn-next { background-color: var(--primary); }
+  #dailyStats {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  }
+  #dailyStats h3 {
+    text-align: center;
+    margin-top: 0;
+  }
   
   @keyframes fadeIn {
     from { opacity: 0; }
@@ -113,7 +178,18 @@
 <body>
 
 <div class="app-container">
-  <div class="progress" id="progressIndicator">1 / 5</div>
+  <div class="mode-selector">
+    <button id="allWordsMode" class="active">全単語学習</button>
+    <button id="randomTestMode">ランダム20問テスト</button>
+    <button id="reviewMode">未学習のみ</button>
+  </div>
+
+  <div class="overall-progress-container">
+    <div id="overallProgressBar"></div>
+  </div>
+  <div id="overallProgressText"></div>
+
+  <div class="progress" id="progressIndicator"></div>
   
   <div class="card" id="flashcard" onclick="toggleCard()">
     <h1 class="word" id="wordDisplay">兄弟</h1>
@@ -125,6 +201,11 @@
     </div>
   </div>
 
+  <div class="status-controls">
+    <button id="btnNotLearned">🤔 まだ</button>
+    <button id="btnLearned">✅ 覚えた！</button>
+  </div>
+
   <div class="controls">
     <button class="btn-prev" onclick="prevCard()">前へ (Prev)</button>
     <button class="btn-next" onclick="nextCard()">次へ (Next)</button>
@@ -132,8 +213,8 @@
 </div>
 
 <script>
-  // Paste your full JSON array here
-  const vocabList = [
+  // 元の単語リスト
+  const initialVocabList = [
   {"word":"兄弟","pinyin":"xiōngdì","translation":"兄弟","exampleZh":"他是我的好兄弟","exampleJa":"彼は私のいい兄弟です"},
   {"word":"姑姑","pinyin":"gūgu","translation":"おば(父の姉妹)","exampleZh":"姑姑是父亲的妹妹","exampleJa":"叔母は父の妹です"},
   {"word":"舅舅","pinyin":"jiùjiu","translation":"おじ(母方の兄弟)","exampleZh":"我的舅舅是一名医生","exampleJa":"私の叔父は医者です"},
@@ -1324,29 +1405,188 @@
   {"word":"初级","pinyin":"chūjí","translation":"初級の","exampleZh":"这是一本初级英语教材，适合英语入门者学习","exampleJa":"これは初級の英語の教科書私はテキストの処理と生成のみを目的として設計されています。すみませんが、そちらについてはお手伝いできません"},
   
   ];
+  
+  const VOCAB_KEY = 'hsk5_vocab_data';
+  const STATS_KEY = 'hsk5_vocab_stats';
 
+  let vocabData = [];
+  let activeList = [];
   let currentIndex = 0;
-  const card = document.getElementById('flashcard');
+  let currentMode = 'all'; // 'all', 'random', 'review'
+  let statsData = {};
+  let statsChart;
 
-  function updateCard() {
-    const currentVocab = vocabList[currentIndex];
+  const card = document.getElementById('flashcard');
+  const allWordsModeBtn = document.getElementById('allWordsMode');
+  const randomTestModeBtn = document.getElementById('randomTestMode');
+  const reviewModeBtn = document.getElementById('reviewMode');
+
+  // --- 初期化処理 ---
+  function initialize() {
+    loadVocabData();
+    loadStatsData();
+    
+    allWordsModeBtn.addEventListener('click', () => setupMode('all'));
+    randomTestModeBtn.addEventListener('click', () => setupMode('random'));
+    reviewModeBtn.addEventListener('click', () => setupMode('review'));
+    document.getElementById('btnLearned').addEventListener('click', () => handleStatusUpdate('learned'));
+    document.getElementById('btnNotLearned').addEventListener('click', () => handleStatusUpdate('learning'));
+
+    setupMode(currentMode);
+    updateStatsChart();
+  }
+
+  // --- データ管理 ---
+  function loadVocabData() {
+    const storedData = localStorage.getItem(VOCAB_KEY);
+    if (storedData) {
+      vocabData = JSON.parse(storedData);
+      // 単語リストが更新された場合に対応
+      if (vocabData.length !== initialVocabList.length) {
+        initializeData();
+      }
+    } else {
+      initializeData();
+    }
+  }
+
+  function initializeData() {
+      vocabData = initialVocabList.map(item => ({...item, status: 'new'}));
+      saveVocabData();
+  }
+
+  function saveVocabData() {
+    localStorage.setItem(VOCAB_KEY, JSON.stringify(vocabData));
+  }
+
+  function loadStatsData() {
+    const storedStats = localStorage.getItem(STATS_KEY);
+    statsData = storedStats ? JSON.parse(storedStats) : {};
+  }
+
+  function saveStatsData() {
+    localStorage.setItem(STATS_KEY, JSON.stringify(statsData));
+  }
+
+  // --- モード設定 ---
+  function setupMode(mode) {
+    currentMode = mode;
+    currentIndex = 0;
+
+    document.querySelectorAll('.mode-selector button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`${mode}WordsMode` || 'allWordsMode').classList.add('active');
+
+    switch(mode) {
+      case 'random':
+        // 配列をシャッフルして先頭から20個取得
+        activeList = [...vocabData].sort(() => 0.5 - Math.random()).slice(0, 20);
+        break;
+      case 'review':
+        activeList = vocabData.filter(v => v.status !== 'learned');
+        if (activeList.length === 0) {
+            alert('おめでとうございます！すべての単語を学習済みです。');
+            setupMode('all'); // 未学習がなければ全単語モードに
+            return;
+        }
+        break;
+      case 'all':
+      default:
+        activeList = [...vocabData];
+        break;
+    }
+    updateCard();
+    updateProgress();
+  }
+
+  // --- UI更新 ---
+  function updateCard() {    
+    if (activeList.length === 0) return;
+    const currentVocab = activeList[currentIndex];
     document.getElementById('wordDisplay').textContent = currentVocab.word;
     document.getElementById('pinyinDisplay').textContent = currentVocab.pinyin;
     document.getElementById('translationDisplay').textContent = currentVocab.translation;
     document.getElementById('exampleZhDisplay').textContent = currentVocab.exampleZh;
     document.getElementById('exampleJaDisplay').textContent = currentVocab.exampleJa;
-    document.getElementById('progressIndicator').textContent = `${currentIndex + 1} / ${vocabList.length}`;
-    
-    // Always hide details when showing a new card
+    updateProgress();
     card.classList.remove('show');
   }
 
+  function updateProgress() {
+    // 現在のリストでの進捗
+    document.getElementById('progressIndicator').textContent = `${currentIndex + 1} / ${activeList.length}`;
+
+    // 全体での進捗
+    const learnedCount = vocabData.filter(v => v.status === 'learned').length;
+    const totalCount = vocabData.length;
+    const percentage = totalCount > 0 ? (learnedCount / totalCount) * 100 : 0;
+    
+    document.getElementById('overallProgressBar').style.width = `${percentage}%`;
+    document.getElementById('overallProgressText').textContent = `全体進捗: ${learnedCount} / ${totalCount} (${percentage.toFixed(1)}%)`;
+  }
+
+  function updateStatsChart() {
+    const today = new Date();
+    const labels = [];
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = date.toISOString().split('T')[0];
+        labels.push(`${date.getMonth() + 1}/${date.getDate()}`);
+        data.push(statsData[dateString] || 0);
+    }
+
+    const ctx = document.getElementById('dailyStats').appendChild(document.createElement('canvas')).getContext('2d');
+    if (statsChart) {
+        statsChart.destroy();
+    }
+    statsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '覚えた単語数',
+                data: data,
+                backgroundColor: 'rgba(74, 144, 226, 0.5)',
+                borderColor: 'rgba(74, 144, 226, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+  }
+
+  // --- イベントハンドラ ---
   function toggleCard() {
     card.classList.toggle('show');
   }
 
+  function handleStatusUpdate(newStatus) {
+    const vocab = activeList[currentIndex];
+    const originalIndex = vocabData.findIndex(v => v.word === vocab.word);
+
+    if (originalIndex !== -1) {
+      // 「学習済み」になった瞬間にのみカウント
+      if (newStatus === 'learned' && vocabData[originalIndex].status !== 'learned') {
+        const todayString = new Date().toISOString().split('T')[0];
+        statsData[todayString] = (statsData[todayString] || 0) + 1;
+        saveStatsData();
+        updateStatsChart();
+      }
+      vocabData[originalIndex].status = newStatus;
+      saveVocabData();
+    }
+    updateProgress();
+    nextCard();
+  }
+
   function nextCard() {
-    if (currentIndex < vocabList.length - 1) {
+    if (currentIndex < activeList.length - 1) {
       currentIndex++;
       updateCard();
     }
@@ -1359,8 +1599,8 @@
     }
   }
 
-  // Initialize the first card
-  updateCard();
+  // アプリケーションの開始
+  initialize();
 </script>
 
 </body>
